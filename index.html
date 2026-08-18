@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard JIFS 2026 - Controle de Horários & Conflitos | Campus Sapucaia</title>
+  
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <!-- CSS Customizado -->
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <div class="app-container">
+
+    <!-- Header para Impressão -->
+    <div class="print-only-header">
+      <h1 style="font-size: 1.5rem; margin-bottom: 0.25rem;">INSTITUTO FEDERAL SUL-RIO-GRANDENSE - CAMPUS SAPUCAIA</h1>
+      <h2 style="font-size: 1.2rem; font-weight: normal;">Jogos Intercampus (JIFS 2026) - Fase Metropolitana</h2>
+      <p style="font-size: 0.9rem; color: #555;">Ficha de Acompanhamento da Delegação do Campus Sapucaia</p>
+      <hr style="margin-top: 1rem;">
+    </div>
+
+    <!-- Header da Aplicação -->
+    <header class="app-header">
+      <div class="brand-section">
+        <div class="brand-icon">
+          <i class="fa-solid fa-trophy"></i>
+        </div>
+        <div>
+          <div class="brand-title">JIFS 2026 — Controle de Horários</div>
+          <div class="brand-subtitle">
+            <span class="badge-campus"><i class="fa-solid fa-building-columns"></i> Campus Sapucaia</span>
+            Fase Metropolitana • 25 e 26 de Agosto
+          </div>
+        </div>
+      </div>
+
+      <div class="header-actions">
+        <button class="btn-primary" onclick="window.exportScheduleCSV()">
+          <i class="fa-solid fa-file-csv"></i> Exportar CSV
+        </button>
+        <button class="btn-icon" onclick="window.printSchedule()" title="Imprimir Ficha da Delegação">
+          <i class="fa-solid fa-print"></i>
+        </button>
+        <button class="btn-icon" id="themeToggleBtn" title="Alternar Tema Claro/Escuro">
+          <i class="fa-solid fa-sun"></i>
+        </button>
+      </div>
+    </header>
+
+    <!-- Banner de Alerta de Conflitos -->
+    <div class="conflict-alert-banner" id="conflictAlertBanner" style="display: none;">
+      <div class="banner-content">
+        <i class="fa-solid fa-triangle-exclamation banner-icon"></i>
+        <div class="banner-text">
+          <h4 id="bannerTextTitle">Conflitos de Horário Detectados para o Campus Sapucaia!</h4>
+          <p id="bannerTextDesc">Existem jogos simultâneos marcados exatamente no mesmo horário em quadras diferentes.</p>
+        </div>
+      </div>
+      <button class="btn-alert" onclick="document.querySelector('[data-tab=\'conflitos\']').click()">
+        Resolver Conflitos <i class="fa-solid fa-arrow-right"></i>
+      </button>
+    </div>
+
+    <!-- KPI Cards Grid -->
+    <section class="kpi-grid">
+      <div class="kpi-card">
+        <div class="kpi-icon green">
+          <i class="fa-solid fa-calendar-day"></i>
+        </div>
+        <div class="kpi-info">
+          <div class="kpi-value" id="kpiTotalSapucaia">0</div>
+          <div class="kpi-label">Jogos de Sapucaia</div>
+        </div>
+      </div>
+
+      <div class="kpi-card">
+        <div class="kpi-icon blue">
+          <i class="fa-solid fa-circle-check"></i>
+        </div>
+        <div class="kpi-info">
+          <div class="kpi-value" id="kpiConfirmados">0</div>
+          <div class="kpi-label">Jogos Confirmados</div>
+        </div>
+      </div>
+
+      <div class="kpi-card">
+        <div class="kpi-icon red">
+          <i class="fa-solid fa-triangle-exclamation"></i>
+        </div>
+        <div class="kpi-info">
+          <div class="kpi-value" id="kpiConflitos">0</div>
+          <div class="kpi-label">Conflitos de Horário</div>
+        </div>
+      </div>
+
+      <div class="kpi-card">
+        <div class="kpi-icon purple">
+          <i class="fa-solid fa-user-tie"></i>
+        </div>
+        <div class="kpi-info">
+          <div class="kpi-value" id="kpiProfessores">0</div>
+          <div class="kpi-label">Professores Escalados</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Navegação por Abas -->
+    <nav class="tabs-nav">
+      <button class="tab-btn active" data-tab="cards">
+        <i class="fa-solid fa-list-check"></i> Lista de Jogos
+      </button>
+      <button class="tab-btn" data-tab="timeline">
+        <i class="fa-solid fa-table-cells-large"></i> Matriz / Linha do Tempo
+      </button>
+      <button class="tab-btn" data-tab="conflitos">
+        <i class="fa-solid fa-triangle-exclamation"></i> Conflitos
+        <span class="tab-badge" id="badgeConflitosTab">0</span>
+      </button>
+      <button class="tab-btn" data-tab="professores">
+        <i class="fa-solid fa-users"></i> Gestão de Professores (CRUD + Matrizes)
+      </button>
+    </nav>
+
+    <!-- Painel de Filtros e Controles -->
+    <section class="controls-bar">
+      <div class="filter-row">
+        <!-- Date Pills -->
+        <div class="filter-item">
+          <span class="filter-label">Filtrar por Dia</span>
+          <div class="date-pills">
+            <button class="date-pill-btn active" data-date="todas">Todos os Dias</button>
+            <button class="date-pill-btn" data-date="2026-08-25">25/08 (Ter)</button>
+            <button class="date-pill-btn" data-date="2026-08-26">26/08 (Qua)</button>
+          </div>
+        </div>
+
+        <!-- Dropdowns -->
+        <div class="filter-group">
+          <div class="filter-item">
+            <span class="filter-label">Modalidade</span>
+            <select class="select-custom" id="selectModalidade">
+              <option value="todas">Todas as Modalidades</option>
+            </select>
+          </div>
+
+          <div class="filter-item">
+            <span class="filter-label">Quadra / Local</span>
+            <select class="select-custom" id="selectQuadra">
+              <option value="todas">Todas as Quadras</option>
+            </select>
+          </div>
+
+          <div class="filter-item">
+            <span class="filter-label">Categoria</span>
+            <select class="select-custom" id="selectCategoria">
+              <option value="todas">Todas</option>
+              <option value="Masculino">Masculino</option>
+              <option value="Feminino">Feminino</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Search & Toggle -->
+        <div class="filter-group">
+          <div class="filter-item">
+            <span class="filter-label">Buscar Jogos / Profs</span>
+            <input type="text" class="input-custom" id="inputBusca" placeholder="Ex: Sapucaia, Futsal, Carlos...">
+          </div>
+
+          <label class="toggle-wrapper" style="margin-top: 1.25rem;" title="Filtrar para exibir apenas jogos onde o Campus Sapucaia participa">
+            <input type="checkbox" id="chkApenasSapucaia" checked style="display: none;">
+            <div class="toggle-switch"></div>
+            <span style="font-size: 0.85rem; font-weight: 700; color: var(--ifsul-green-light);">Apenas Sapucaia</span>
+          </label>
+        </div>
+      </div>
+    </section>
+
+    <!-- Conteúdo das Abas -->
+
+    <!-- ABA 1: Lista de Jogos (Cards) -->
+    <main class="tab-content active" id="tab_cards">
+      <div class="match-cards-grid" id="matchCardsGrid">
+        <!-- Renderizado dinamicamente via JS -->
+      </div>
+    </main>
+
+    <!-- ABA 2: Matriz / Timeline -->
+    <main class="tab-content" id="tab_timeline">
+      <div id="timelineViewContainer">
+        <!-- Renderizado dinamicamente via JS -->
+      </div>
+    </main>
+
+    <!-- ABA 3: Central de Conflitos -->
+    <main class="tab-content" id="tab_conflitos">
+      <div id="conflictCenterContainer">
+        <!-- Renderizado dinamicamente via JS -->
+      </div>
+    </main>
+
+    <!-- ABA 4: Escala e CRUD de Professores (com Matriz Individual por Professor) -->
+    <main class="tab-content" id="tab_professores">
+      <div id="teachersManagementContainer">
+        <!-- Renderizado dinamicamente via JS -->
+      </div>
+    </main>
+
+    <!-- Rodapé -->
+    <footer style="margin-top: 3rem; padding: 1.5rem 0; border-top: 1px solid var(--border-color); text-align: center; color: var(--text-muted); font-size: 0.85rem;">
+      <p>Dashboard de Gestão de Jogos e Conflitos — Delegação Campus Sapucaia (JIFS 2026)</p>
+      <p style="font-size: 0.75rem; margin-top: 0.25rem; color: var(--text-dim);">Instituto Federal Sul-rio-grandense • Fase Metropolitana</p>
+    </footer>
+
+  </div>
+
+  <!-- MODAL 1: CADASTRO / EDIÇÃO DE PROFESSOR (CRUD + SELETOR DE COR) -->
+  <div class="modal-backdrop" id="teacherModal">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3 class="modal-title" id="teacherModalTitle"><i class="fa-solid fa-user-pen"></i> Cadastrar Professor</h3>
+        <button class="btn-icon" onclick="window.closeTeacherModal()" style="width: 32px; height: 32px; font-size: 0.9rem;">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <form id="teacherForm" onsubmit="window.handleTeacherSubmit(event)">
+        <input type="hidden" id="teacherFormId" value="">
+        
+        <div style="display: flex; flex-direction: column; gap: 0.85rem; margin-top: 0.5rem;">
+          <div class="filter-item">
+            <label class="filter-label" for="teacherFormNome">Nome Completo *</label>
+            <input type="text" class="input-custom" id="teacherFormNome" required placeholder="Ex: Prof. João Silva">
+          </div>
+
+          <div class="filter-item">
+            <label class="filter-label" for="teacherFormEmail">E-mail Institucional</label>
+            <input type="email" class="input-custom" id="teacherFormEmail" placeholder="joao.silva@sapucaia.ifsul.edu.br">
+          </div>
+
+          <div class="filter-item">
+            <label class="filter-label" for="teacherFormModalidade">Modalidade Preferencial / Área</label>
+            <input type="text" class="input-custom" id="teacherFormModalidade" placeholder="Ex: Futsal, Basquete, Geral...">
+          </div>
+
+          <!-- Seletor de Cor do Professor -->
+          <div class="filter-item">
+            <label class="filter-label" for="teacherFormCor">Cor de Destaque do Professor</label>
+            <div style="display: flex; align-items: center; gap: 0.75rem;">
+              <input type="color" id="teacherFormCor" value="#10b981" style="width: 44px; height: 38px; border: 1px solid var(--border-color); border-radius: var(--radius-sm); cursor: pointer; background: transparent;">
+              <span style="font-size: 0.8rem; color: var(--text-muted);">Esta cor destacará os jogos e crachás deste professor na matriz e agenda.</span>
+            </div>
+          </div>
+        </div>
+
+        <div style="display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 1.5rem;">
+          <button type="button" class="btn-icon" onclick="window.closeTeacherModal()" style="width: auto; padding: 0 1rem; border-radius: var(--radius-sm); font-size: 0.85rem;">
+            Cancelar
+          </button>
+          <button type="submit" class="btn-primary" style="padding: 0.5rem 1.25rem;">
+            <i class="fa-solid fa-floppy-disk"></i> Salvar Professor
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL 2: ATRIBUIÇÃO DE PROFESSOR AO CLICAR NO JOGO NA MATRIZ -->
+  <div class="modal-backdrop" id="assignTeacherModal">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3 class="modal-title"><i class="fa-solid fa-user-tie"></i> Escalar / Remover Professor</h3>
+        <button class="btn-icon" onclick="window.closeAssignModal()" style="width: 32px; height: 32px; font-size: 0.9rem;">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <input type="hidden" id="assignMatchId" value="">
+
+      <!-- Detalhes do Jogo Selecionado -->
+      <div id="assignMatchDetailsInfo" style="background: rgba(0,0,0,0.2); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 1rem;">
+        <!-- Preenchido via JS -->
+      </div>
+
+      <div class="filter-item" style="margin-top: 1rem;">
+        <label class="filter-label" for="assignSelectProfessor">Selecione o Professor Responsável</label>
+        <select class="select-custom" id="assignSelectProfessor" style="width: 100%; margin-top: 0.35rem; font-size: 0.95rem;">
+          <!-- Preenchido via JS -->
+        </select>
+      </div>
+
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 1.5rem;">
+        <button type="button" class="btn-alert" onclick="window.removeMatchTeacher()" style="padding: 0.55rem 1rem; font-size: 0.85rem; background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.4);">
+          <i class="fa-solid fa-user-minus"></i> Remover Professor
+        </button>
+
+        <div style="display: flex; gap: 0.5rem;">
+          <button type="button" class="btn-icon" onclick="window.closeAssignModal()" style="width: auto; padding: 0 1rem; border-radius: var(--radius-sm); font-size: 0.85rem;">
+            Cancelar
+          </button>
+          <button type="button" class="btn-primary" onclick="window.saveMatchTeacherFromModal()" style="padding: 0.55rem 1.25rem;">
+            <i class="fa-solid fa-check"></i> Confirmar Escala
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Scripts -->
+  <script src="data.js"></script>
+  <script src="app.js"></script>
+
+</body>
+</html>

@@ -1,0 +1,19 @@
+{
+  "name": "jifs-2026-sapucaia",
+  "version": "1.0.0",
+  "description": "Dashboard de Controle de Horários & Conflitos - JIFS 2026 Campus Sapucaia",
+  "main": "index.html",
+  "scripts": {
+    "start": "npx serve .",
+    "build": "echo 'Static deployment build completed'"
+  },
+  "keywords": [
+    "jifs",
+    "ifsul",
+    "sapucaia",
+    "dashboard",
+    "esporte"
+  ],
+  "author": "Delegação Campus Sapucaia",
+  "license": "MIT"
+}
