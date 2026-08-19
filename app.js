@@ -32,59 +32,78 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // --- CARREGAMENTO E SINCRONIZAÇÃO DE DADOS ---
   async function initDatabaseAndLoadState() {
-  try {
-    await DBService.init();
-    const profsDB = await DBService.getProfessores();
-    const atribDB = await DBService.getAtribuicoes();
-    const escalaDB = await DBService.getEscalaDia();
+    try {
+      await DBService.init();
+      const profsDB = await DBService.getProfessores();
+      const atribDB = await DBService.getAtribuicoes();
+      const escalaDB = await DBService.getEscalaDia();
 
-    // Carrega do banco de dados do Supabase
-    if (profsDB && profsDB.length > 0) {
-      state.professores = profsDB;
-    } else {
-      // Se o banco estiver vazio, usa o fallback do localStorage/vazio
+      // Carrega do banco de dados do Supabase
+      if (profsDB && profsDB.length > 0) {
+        state.professores = profsDB;
+      } else {
+        // Se o banco estiver vazio, usa o fallback do localStorage/vazio
+        state.professores = loadProfessoresFallback();
+      }
+
+      state.atribuicoes = Object.keys(atribDB).length > 0 ? atribDB : loadAtribuicoesFallback();
+      state.escalaDia = escalaDB || loadEscalaDiaFallback();
+
+      saveAllStorageBackup();
+      console.log("⚡ [App] Estado sincronizado e persistido com sucesso.");
+    } catch (e) {
+      console.warn("⚠️ Utilizando dados do localStorage como backup por erro de conexão:", e);
       state.professores = loadProfessoresFallback();
+      state.atribuicoes = loadAtribuicoesFallback();
+      state.escalaDia = loadEscalaDiaFallback();
     }
-
-    state.atribuicoes = Object.keys(atribDB).length > 0 ? atribDB : loadAtribuicoesFallback();
-    state.escalaDia = escalaDB || loadEscalaDiaFallback();
-
-    saveAllStorageBackup();
-    console.log("⚡ [App] Estado sincronizado e persistido com sucesso.");
-  } catch (e) {
-    console.warn("⚠️ Utilizando dados do localStorage como backup por erro de conexão:", e);
-    state.professores = loadProfessoresFallback();
-    state.atribuicoes = loadAtribuicoesFallback();
-    state.escalaDia = loadEscalaDiaFallback();
   }
-}
+
+  function setupRealtimeListeners() {
+    if (!DBService.supabaseClient) return;
+
+    // Escuta alterações na tabela de professores
+    DBService.supabaseClient
+      .channel('schema-db-changes')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'professores' },
+        async () => {
+          console.log("🔄 Alteração detectada nos professores! Recarregando...");
+          state.professores = await DBService.getProfessores();
+          // Adicione aqui a sua função que redesenha a tela/interface:
+          if (typeof renderApp === 'function') renderApp();
+        }
+      )
+      .subscribe();
+  }
 
   function loadProfessoresFallback() {
-  const saved = localStorage.getItem('jifs_professores');
+    const saved = localStorage.getItem('jifs_professores');
 
-  // Tenta ler do localStorage se existir
-  let profs = [];
-  if (saved) {
-    try {
-      profs = JSON.parse(saved);
-    } catch (e) {
-      console.error("⚠️ Erro ao ler professores do localStorage:", e);
-      profs = [];
+    // Tenta ler do localStorage se existir
+    let profs = [];
+    if (saved) {
+      try {
+        profs = JSON.parse(saved);
+      } catch (e) {
+        console.error("⚠️ Erro ao ler professores do localStorage:", e);
+        profs = [];
+      }
     }
+
+    // Paleta de cores com fallback seguro
+    const paleta = Array.isArray(window.JIFS_DATA?.paletaCoresProfessores)
+      ? window.JIFS_DATA.paletaCoresProfessores
+      : ['#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6'];
+
+    return profs.map((p, index) => {
+      if (!p.cor) {
+        p.cor = paleta[index % paleta.length];
+      }
+      return p;
+    });
   }
-
-  // Paleta de cores com fallback seguro
-  const paleta = Array.isArray(window.JIFS_DATA?.paletaCoresProfessores)
-    ? window.JIFS_DATA.paletaCoresProfessores
-    : ['#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6'];
-
-  return profs.map((p, index) => {
-    if (!p.cor) {
-      p.cor = paleta[index % paleta.length];
-    }
-    return p;
-  });
-}
 
   function loadAtribuicoesFallback() {
     const saved = localStorage.getItem('jifs_atribuicoes');
