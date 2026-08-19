@@ -21,14 +21,6 @@ const JIFS_DATA = {
     "#d97706"  // Dourado
   ],
 
-  professoresPadrao: [
-    { id: "p1", nome: "Prof. Carlos Eduardo", email: "carlos.eduardo@sapucaia.ifsul.edu.br", modalidadePreferencial: "Futsal", cor: "#10b981" },
-    { id: "p2", nome: "Profª Ana Paula", email: "ana.paula@sapucaia.ifsul.edu.br", modalidadePreferencial: "Voleibol", cor: "#0284c7" },
-    { id: "p3", nome: "Prof. Rodrigo Silva", email: "rodrigo.silva@sapucaia.ifsul.edu.br", modalidadePreferencial: "Basquete", cor: "#8b5cf6" },
-    { id: "p4", nome: "Profª Mariana Ramos", email: "mariana.ramos@sapucaia.ifsul.edu.br", modalidadePreferencial: "Handebol", cor: "#ec4899" },
-    { id: "p5", nome: "Prof. Fernando Souza", email: "fernando.souza@sapucaia.ifsul.edu.br", modalidadePreferencial: "Futebol", cor: "#f59e0b" }
-  ],
-
   locais: [
     { id: "Q1", nome: "Quadra Q1", tipo: "Quadra Poliesportiva" },
     { id: "Q2", nome: "Quadra Q2", tipo: "Quadra Poliesportiva" },

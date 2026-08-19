@@ -1,15 +1,15 @@
 /**
  * Lógica do Dashboard de Controle de Horários & Conflitos JIFS 2026
- * Campus Sapucaia - Versão 100% Funcional e Sem Erros de Sintaxe
+ * Campus Sapucaia - Com Persistência Tripla (Supabase + IndexedDB + LocalStorage)
  */
 
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
   // --- ESTADO DA APLICAÇÃO ---
   const state = {
     jogos: [...JIFS_DATA.jogos],
-    professores: loadProfessores(),
-    atribuicoes: loadAtribuicoes(),
-    escalaDia: loadEscalaDia(),
+    professores: [],
+    atribuicoes: {},
+    escalaDia: { "2026-08-25": "", "2026-08-26": "" },
     profSelecionadoMatriz: null,
     filtros: {
       data: 'todas',
@@ -23,38 +23,62 @@ document.addEventListener('DOMContentLoaded', () => {
     tema: localStorage.getItem('jifs_theme') || 'dark'
   };
 
-  // --- INICIALIZAÇÃO ---
+  // --- INICIALIZAÇÃO DA PERSISTÊNCIA ---
+  await initDatabaseAndLoadState();
   initTheme();
   populateFilterDropdowns();
   bindEvents();
   render();
 
-  // --- CARREGAMENTO E SALVAMENTO NO LOCALSTORAGE ---
-  function loadProfessores() {
+  // --- CARREGAMENTO E SINCRONIZAÇÃO DE DADOS ---
+  async function initDatabaseAndLoadState() {
+    try {
+      await DBService.init();
+      const profsDB = await DBService.getProfessores();
+      const atribDB = await DBService.getAtribuicoes();
+      const escalaDB = await DBService.getEscalaDia();
+
+      if (profsDB && profsDB.length > 0) {
+        state.professores = profsDB;
+      } else {
+        state.professores = loadProfessoresFallback();
+      }
+
+      state.atribuicoes = Object.keys(atribDB).length > 0 ? atribDB : loadAtribuicoesFallback();
+      state.escalaDia = escalaDB || loadEscalaDiaFallback();
+
+      saveAllStorageBackup();
+      console.log("⚡ [App] Estado sincronizado e persistido com sucesso.");
+    } catch (e) {
+      console.warn("⚠️ Utilizando dados do localStorage como backup:", e);
+      state.professores = loadProfessoresFallback();
+      state.atribuicoes = loadAtribuicoesFallback();
+      state.escalaDia = loadEscalaDiaFallback();
+    }
+  }
+
+  function loadProfessoresFallback() {
     const saved = localStorage.getItem('jifs_professores');
     let profs = saved ? JSON.parse(saved) : [...JIFS_DATA.professoresPadrao];
-    
-    // Garante que cada professor tenha uma cor válida atribuída
-    profs = profs.map((p, index) => {
+    return profs.map((p, index) => {
       if (!p.cor) {
         p.cor = JIFS_DATA.paletaCoresProfessores[index % JIFS_DATA.paletaCoresProfessores.length];
       }
       return p;
     });
-    return profs;
   }
 
-  function loadAtribuicoes() {
+  function loadAtribuicoesFallback() {
     const saved = localStorage.getItem('jifs_atribuicoes');
     return saved ? JSON.parse(saved) : {};
   }
 
-  function loadEscalaDia() {
+  function loadEscalaDiaFallback() {
     const saved = localStorage.getItem('jifs_escala_dia');
     return saved ? JSON.parse(saved) : { "2026-08-25": "", "2026-08-26": "" };
   }
 
-  function saveAllStorage() {
+  function saveAllStorageBackup() {
     localStorage.setItem('jifs_professores', JSON.stringify(state.professores));
     localStorage.setItem('jifs_atribuicoes', JSON.stringify(state.atribuicoes));
     localStorage.setItem('jifs_escala_dia', JSON.stringify(state.escalaDia));
@@ -718,9 +742,14 @@ document.addEventListener('DOMContentLoaded', () => {
     render();
   };
 
-  window.assignTeacher = function(matchId, teacherId) {
-    state.atribuicoes[matchId] = teacherId;
-    saveAllStorage();
+  window.assignTeacher = async function(matchId, teacherId) {
+    if (teacherId) {
+      state.atribuicoes[matchId] = teacherId;
+    } else {
+      delete state.atribuicoes[matchId];
+    }
+    saveAllStorageBackup();
+    await DBService.setAtribuicao(matchId, teacherId);
     render();
   };
 
@@ -776,7 +805,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (modal) modal.classList.remove('active');
   };
 
-  window.saveMatchTeacherFromModal = function() {
+  window.saveMatchTeacherFromModal = async function() {
     const matchIdInput = document.getElementById('assignMatchId');
     const profSelect = document.getElementById('assignSelectProfessor');
 
@@ -790,20 +819,22 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
           delete state.atribuicoes[matchId];
         }
-        saveAllStorage();
+        saveAllStorageBackup();
+        await DBService.setAtribuicao(matchId, profId);
         window.closeAssignModal();
         render();
       }
     }
   };
 
-  window.removeMatchTeacher = function() {
+  window.removeMatchTeacher = async function() {
     const matchIdInput = document.getElementById('assignMatchId');
     if (matchIdInput) {
       const matchId = matchIdInput.value;
       if (matchId) {
         delete state.atribuicoes[matchId];
-        saveAllStorage();
+        saveAllStorageBackup();
+        await DBService.setAtribuicao(matchId, "");
         window.closeAssignModal();
         render();
       }
@@ -815,9 +846,10 @@ document.addEventListener('DOMContentLoaded', () => {
     render();
   };
 
-  window.setEscalaDia = function(data, profId) {
+  window.setEscalaDia = async function(data, profId) {
     state.escalaDia[data] = profId;
-    saveAllStorage();
+    saveAllStorageBackup();
+    await DBService.setEscalaDia(data, profId);
     render();
   };
 
@@ -860,7 +892,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (modal) modal.classList.remove('active');
   };
 
-  window.handleTeacherSubmit = function(e) {
+  window.handleTeacherSubmit = async function(e) {
     e.preventDefault();
     const id = document.getElementById('teacherFormId').value;
     const nome = document.getElementById('teacherFormNome').value.trim();
@@ -871,28 +903,36 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (!nome) return;
 
+    let targetProf;
+
     if (id) {
       const index = state.professores.findIndex(p => p.id === id);
       if (index !== -1) {
         state.professores[index] = { ...state.professores[index], nome, email, modalidadePreferencial: modalidade, cor };
+        targetProf = state.professores[index];
       }
     } else {
-      const newProf = {
+      targetProf = {
         id: 'p_' + Date.now(),
         nome,
         email,
         modalidadePreferencial: modalidade,
         cor: cor || JIFS_DATA.paletaCoresProfessores[state.professores.length % JIFS_DATA.paletaCoresProfessores.length]
       };
-      state.professores.push(newProf);
+      state.professores.push(targetProf);
     }
 
-    saveAllStorage();
+    saveAllStorageBackup();
+
+    if (targetProf) {
+      await DBService.saveProfessor(targetProf);
+    }
+
     window.closeTeacherModal();
     render();
   };
 
-  window.deleteTeacher = function(teacherId) {
+  window.deleteTeacher = async function(teacherId) {
     const prof = state.professores.find(p => p.id === teacherId);
     if (!prof) return;
 
@@ -908,9 +948,19 @@ document.addEventListener('DOMContentLoaded', () => {
       if (state.escalaDia["2026-08-25"] === teacherId) state.escalaDia["2026-08-25"] = "";
       if (state.escalaDia["2026-08-26"] === teacherId) state.escalaDia["2026-08-26"] = "";
 
-      saveAllStorage();
+      saveAllStorageBackup();
+      await DBService.deleteProfessor(teacherId);
       render();
     }
+  };
+
+  window.exportSQLScript = async function() {
+    const sqlText = await DBService.exportSQLQueries();
+    const blob = new Blob([sqlText], { type: 'text/plain;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = 'Script_Persistencia_JIFS2026.sql';
+    link.click();
   };
 
   window.exportScheduleCSV = function() {
