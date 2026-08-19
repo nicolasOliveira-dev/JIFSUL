@@ -26,19 +26,6 @@ PRONTO! O dashboard agora sincronizará automaticamente todas as alterações co
 
 ---
 
-## 🚀 Como Hospedar na Vercel
-
-### Opção 1: Via Vercel CLI (Linha de Comando)
-```bash
-npx vercel
-```
-
-### Opção 2: Via GitHub + Vercel Web
-1. Suba o código para o GitHub.
-2. Importe o projeto no painel da Vercel e clique em **Deploy**.
-
----
-
 ## 📂 Arquivos da Aplicação
 - `schema.sql`: Script SQL do banco de dados PostgreSQL / Supabase.
 - `db.js`: Módulo de conexão com o banco de dados (IndexedDB local + Supabase).

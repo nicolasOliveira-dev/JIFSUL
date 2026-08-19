@@ -32,41 +32,59 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // --- CARREGAMENTO E SINCRONIZAÇÃO DE DADOS ---
   async function initDatabaseAndLoadState() {
-    try {
-      await DBService.init();
-      const profsDB = await DBService.getProfessores();
-      const atribDB = await DBService.getAtribuicoes();
-      const escalaDB = await DBService.getEscalaDia();
+  try {
+    await DBService.init();
+    const profsDB = await DBService.getProfessores();
+    const atribDB = await DBService.getAtribuicoes();
+    const escalaDB = await DBService.getEscalaDia();
 
-      if (profsDB && profsDB.length > 0) {
-        state.professores = profsDB;
-      } else {
-        state.professores = loadProfessoresFallback();
-      }
-
-      state.atribuicoes = Object.keys(atribDB).length > 0 ? atribDB : loadAtribuicoesFallback();
-      state.escalaDia = escalaDB || loadEscalaDiaFallback();
-
-      saveAllStorageBackup();
-      console.log("⚡ [App] Estado sincronizado e persistido com sucesso.");
-    } catch (e) {
-      console.warn("⚠️ Utilizando dados do localStorage como backup:", e);
+    // Carrega do banco de dados do Supabase
+    if (profsDB && profsDB.length > 0) {
+      state.professores = profsDB;
+    } else {
+      // Se o banco estiver vazio, usa o fallback do localStorage/vazio
       state.professores = loadProfessoresFallback();
-      state.atribuicoes = loadAtribuicoesFallback();
-      state.escalaDia = loadEscalaDiaFallback();
+    }
+
+    state.atribuicoes = Object.keys(atribDB).length > 0 ? atribDB : loadAtribuicoesFallback();
+    state.escalaDia = escalaDB || loadEscalaDiaFallback();
+
+    saveAllStorageBackup();
+    console.log("⚡ [App] Estado sincronizado e persistido com sucesso.");
+  } catch (e) {
+    console.warn("⚠️ Utilizando dados do localStorage como backup por erro de conexão:", e);
+    state.professores = loadProfessoresFallback();
+    state.atribuicoes = loadAtribuicoesFallback();
+    state.escalaDia = loadEscalaDiaFallback();
+  }
+}
+
+  function loadProfessoresFallback() {
+  const saved = localStorage.getItem('jifs_professores');
+
+  // Tenta ler do localStorage se existir
+  let profs = [];
+  if (saved) {
+    try {
+      profs = JSON.parse(saved);
+    } catch (e) {
+      console.error("⚠️ Erro ao ler professores do localStorage:", e);
+      profs = [];
     }
   }
 
-  function loadProfessoresFallback() {
-    const saved = localStorage.getItem('jifs_professores');
-    let profs = saved ? JSON.parse(saved) : [...JIFS_DATA.professoresPadrao];
-    return profs.map((p, index) => {
-      if (!p.cor) {
-        p.cor = JIFS_DATA.paletaCoresProfessores[index % JIFS_DATA.paletaCoresProfessores.length];
-      }
-      return p;
-    });
-  }
+  // Paleta de cores com fallback seguro
+  const paleta = Array.isArray(window.JIFS_DATA?.paletaCoresProfessores)
+    ? window.JIFS_DATA.paletaCoresProfessores
+    : ['#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6'];
+
+  return profs.map((p, index) => {
+    if (!p.cor) {
+      p.cor = paleta[index % paleta.length];
+    }
+    return p;
+  });
+}
 
   function loadAtribuicoesFallback() {
     const saved = localStorage.getItem('jifs_atribuicoes');
@@ -129,14 +147,14 @@ document.addEventListener('DOMContentLoaded', async () => {
       const jogosNoSlot = mapaHorariosCampus[key];
       if (jogosNoSlot.length > 1) {
         const profsEscalados = jogosNoSlot.map(j => state.atribuicoes[j.id] || '');
-        
+
         const temJogoSemProf = profsEscalados.some(pId => pId === '');
         const profsValidos = profsEscalados.filter(pId => pId !== '');
         const temProfDuplicado = new Set(profsValidos).size < profsValidos.length;
 
         if (temJogoSemProf || temProfDuplicado) {
           const [data, horario] = key.split('_');
-          
+
           let motivo = '';
           if (temJogoSemProf && temProfDuplicado) {
             motivo = 'Existem jogos sem professor E o mesmo professor foi escalado em quadras diferentes!';
@@ -193,7 +211,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const conflitos = getConflitos();
     renderKPIs(conflitos);
     renderConflictBanner(conflitos);
-    
+
     if (state.tabAtiva === 'cards') renderMatchCards(conflitos);
     if (state.tabAtiva === 'timeline') renderTimelineMatrix(conflitos);
     if (state.tabAtiva === 'conflitos') renderConflictCenter(conflitos);
@@ -314,7 +332,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (!container) return;
 
     const dataSelecionada = state.filtros.data !== 'todas' ? state.filtros.data : '2026-08-25';
-    
+
     const horarios = ["08:00", "08:30", "09:00", "09:30", "10:00", "10:30", "11:00", "11:30", "12:00", "12:30", "13:00", "13:30", "14:00", "14:30", "15:00", "15:30", "16:00", "16:30", "17:00", "17:30", "18:00", "18:30", "19:30", "20:30"];
     const locais = JIFS_DATA.locais;
 
@@ -351,9 +369,9 @@ document.addEventListener('DOMContentLoaded', async () => {
       html += `<td class="time-column-header">${hr}</td>`;
 
       locais.forEach(loc => {
-        let jogosNoSlot = state.jogos.filter(j => 
-          j.data === dataSelecionada && 
-          j.horario === hr && 
+        let jogosNoSlot = state.jogos.filter(j =>
+          j.data === dataSelecionada &&
+          j.horario === hr &&
           (j.quadra === loc.id || (loc.id === 'Q1_Praia' && j.quadra.includes('Praia')))
         );
 
@@ -365,7 +383,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         jogosNoSlot.forEach(j => {
           const isSap = isJogoSapucaia(j);
           const temConflito = conflitos.campus.some(c => c.data === j.data && c.horario === j.horario && c.jogos.some(g => g.id === j.id));
-          
+
           const profId = state.atribuicoes[j.id];
           const profObj = state.professores.find(p => p.id === profId);
 
@@ -433,9 +451,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             <div class="conflict-matches-list">
               ${c.jogos.map(j => {
-                const profId = state.atribuicoes[j.id];
+      const profId = state.atribuicoes[j.id];
 
-                return `
+      return `
                   <div class="match-card is-sapucaia has-conflict" style="margin: 0;">
                     <div class="card-header-top">
                       <div class="sport-tag"><i class="${getSportIcon(j.modalidade)}"></i> ${j.modalidade}</div>
@@ -456,7 +474,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     </div>
                   </div>
                 `;
-              }).join('')}
+    }).join('')}
             </div>
           </div>
         `).join('')}
@@ -475,7 +493,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     const profFiltroId = state.profSelecionadoMatriz;
-    const professoresExibidos = profFiltroId 
+    const professoresExibidos = profFiltroId
       ? professoresComContagem.filter(p => p.id === profFiltroId)
       : professoresComContagem;
 
@@ -565,16 +583,16 @@ document.addEventListener('DOMContentLoaded', async () => {
           </h3>
 
           ${professoresExibidos.map(p => {
-            const jogosDoProf = state.jogos.filter(j => state.atribuicoes[j.id] === p.id);
-            
-            const horariosCount = {};
-            jogosDoProf.forEach(j => {
-              const k = `${j.data}_${j.horario}`;
-              horariosCount[k] = (horariosCount[k] || 0) + 1;
-            });
-            const temSobrecarga = Object.values(horariosCount).some(count => count > 1);
+      const jogosDoProf = state.jogos.filter(j => state.atribuicoes[j.id] === p.id);
 
-            return `
+      const horariosCount = {};
+      jogosDoProf.forEach(j => {
+        const k = `${j.data}_${j.horario}`;
+        horariosCount[k] = (horariosCount[k] || 0) + 1;
+      });
+      const temSobrecarga = Object.values(horariosCount).some(count => count > 1);
+
+      return `
               <div class="teacher-matrix-card" style="border-top: 4px solid ${p.cor};">
                 <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 1rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.75rem; margin-bottom: 0.75rem;">
                   <div style="display: flex; align-items: center; gap: 0.75rem;">
@@ -611,11 +629,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                     </thead>
                     <tbody>
                       ${jogosDoProf.map(j => {
-                        const dataFmt = j.data === '2026-08-25' ? '25/08 (Terça)' : '26/08 (Quarta)';
-                        const key = `${j.data}_${j.horario}`;
-                        const isDuplicado = horariosCount[key] > 1;
+        const dataFmt = j.data === '2026-08-25' ? '25/08 (Terça)' : '26/08 (Quarta)';
+        const key = `${j.data}_${j.horario}`;
+        const isDuplicado = horariosCount[key] > 1;
 
-                        return `
+        return `
                           <tr style="${isDuplicado ? 'background: rgba(239, 68, 68, 0.15);' : ''}">
                             <td style="font-weight: 600; color: var(--accent-blue);">${dataFmt}</td>
                             <td style="font-weight: 700; color: var(--text-main);">${j.horario}</td>
@@ -628,13 +646,13 @@ document.addEventListener('DOMContentLoaded', async () => {
                             </td>
                           </tr>
                         `;
-                      }).join('')}
+      }).join('')}
                     </tbody>
                   </table>
                 `}
               </div>
             `;
-          }).join('')}
+    }).join('')}
         </div>
       </div>
     `;
@@ -656,12 +674,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     const selectQuadra = document.getElementById('selectQuadra');
 
     if (selectModalidade) {
-      selectModalidade.innerHTML = '<option value="todas">Todas as Modalidades</option>' + 
+      selectModalidade.innerHTML = '<option value="todas">Todas as Modalidades</option>' +
         JIFS_DATA.modalidades.map(m => `<option value="${m}">${m}</option>`).join('');
     }
 
     if (selectQuadra) {
-      selectQuadra.innerHTML = '<option value="todas">Todas as Quadras/Campos</option>' + 
+      selectQuadra.innerHTML = '<option value="todas">Todas as Quadras/Campos</option>' +
         JIFS_DATA.locais.map(l => `<option value="${l.id}">${l.nome}</option>`).join('');
     }
   }
@@ -737,12 +755,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   // --- INTERAÇÕES E MÉTODOS GLOBAIS ---
-  window.setMatrizProfFilter = function(profId) {
+  window.setMatrizProfFilter = function (profId) {
     state.profSelecionadoMatriz = profId || null;
     render();
   };
 
-  window.assignTeacher = async function(matchId, teacherId) {
+  window.assignTeacher = async function (matchId, teacherId) {
     if (teacherId) {
       state.atribuicoes[matchId] = teacherId;
     } else {
@@ -754,7 +772,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   };
 
   // MODAL DE ATRIBUIÇÃO AO CLICAR NO JOGO DA MATRIZ
-  window.openAssignModal = function(matchId) {
+  window.openAssignModal = function (matchId) {
     const jogo = state.jogos.find(j => j.id === matchId);
     if (!jogo) return;
 
@@ -800,12 +818,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (modal) modal.classList.add('active');
   };
 
-  window.closeAssignModal = function() {
+  window.closeAssignModal = function () {
     const modal = document.getElementById('assignTeacherModal');
     if (modal) modal.classList.remove('active');
   };
 
-  window.saveMatchTeacherFromModal = async function() {
+  window.saveMatchTeacherFromModal = async function () {
     const matchIdInput = document.getElementById('assignMatchId');
     const profSelect = document.getElementById('assignSelectProfessor');
 
@@ -827,7 +845,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   };
 
-  window.removeMatchTeacher = async function() {
+  window.removeMatchTeacher = async function () {
     const matchIdInput = document.getElementById('assignMatchId');
     if (matchIdInput) {
       const matchId = matchIdInput.value;
@@ -841,12 +859,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   };
 
-  window.setTimelineDate = function(data) {
+  window.setTimelineDate = function (data) {
     state.filtros.data = data;
     render();
   };
 
-  window.setEscalaDia = async function(data, profId) {
+  window.setEscalaDia = async function (data, profId) {
     state.escalaDia[data] = profId;
     saveAllStorageBackup();
     await DBService.setEscalaDia(data, profId);
@@ -854,7 +872,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   };
 
   // MODAL CRUD DE PROFESSORES
-  window.openTeacherModal = function(teacherId = null) {
+  window.openTeacherModal = function (teacherId = null) {
     const modal = document.getElementById('teacherModal');
     const modalTitle = document.getElementById('teacherModalTitle');
     const inputId = document.getElementById('teacherFormId');
@@ -887,12 +905,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (modal) modal.classList.add('active');
   };
 
-  window.closeTeacherModal = function() {
+  window.closeTeacherModal = function () {
     const modal = document.getElementById('teacherModal');
     if (modal) modal.classList.remove('active');
   };
 
-  window.handleTeacherSubmit = async function(e) {
+  window.handleTeacherSubmit = async function (e) {
     e.preventDefault();
     const id = document.getElementById('teacherFormId').value;
     const nome = document.getElementById('teacherFormNome').value.trim();
@@ -932,7 +950,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     render();
   };
 
-  window.deleteTeacher = async function(teacherId) {
+  window.deleteTeacher = async function (teacherId) {
     const prof = state.professores.find(p => p.id === teacherId);
     if (!prof) return;
 
@@ -954,7 +972,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   };
 
-  window.exportSQLScript = async function() {
+  window.exportSQLScript = async function () {
     const sqlText = await DBService.exportSQLQueries();
     const blob = new Blob([sqlText], { type: 'text/plain;charset=utf-8;' });
     const link = document.createElement('a');
@@ -963,7 +981,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     link.click();
   };
 
-  window.exportScheduleCSV = function() {
+  window.exportScheduleCSV = function () {
     const jogosSapucaia = state.jogos.filter(isJogoSapucaia);
     let csv = 'Data,Horario,Modalidade,Quadra,Equipe 1,Equipe 2,Chave,Status,Professor Responsavel\n';
 
@@ -982,7 +1000,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     link.click();
   };
 
-  window.printSchedule = function() {
+  window.printSchedule = function () {
     window.print();
   };
 });

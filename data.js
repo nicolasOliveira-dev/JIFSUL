@@ -21,6 +21,8 @@ const JIFS_DATA = {
     "#d97706"  // Dourado
   ],
 
+
+
   locais: [
     { id: "Q1", nome: "Quadra Q1", tipo: "Quadra Poliesportiva" },
     { id: "Q2", nome: "Quadra Q2", tipo: "Quadra Poliesportiva" },

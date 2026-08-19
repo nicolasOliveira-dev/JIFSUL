@@ -3,10 +3,10 @@
  * Sistema JIFS 2026 - Campus Sapucaia
  */
 
-// --- CONFIGURAÇÃO DO SUPABASE (Insira suas chaves do Supabase aqui para conectar em nuvem!) ---
+// --- CONFIGURAÇÃO DO SUPABASE ---
 const SUPABASE_CONFIG = {
   url: "https://vjazrxsfehwntchgwbes.supabase.co",
-  anonKey: "sb_publishable_AccmJPHWzG75uWJ5Crw0xA_-ga4PuNB" // Ex: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+  anonKey: "sb_publishable_AccmJPHWzG75uWJ5Crw0xA_-ga4PuNB"
 };
 
 const DBService = {
@@ -19,7 +19,7 @@ const DBService = {
    * Inicializa o Banco de Dados (Supabase na Nuvem se configurado, ou IndexedDB no navegador)
    */
   async init() {
-    // 1. Tenta inicializar o Supabase se as chaves forem fornecidas
+    // 1. Tenta inicializar o Supabase se as chaves e biblioteca window.supabase existirem
     if (SUPABASE_CONFIG.url && SUPABASE_CONFIG.anonKey && window.supabase) {
       try {
         this.supabaseClient = window.supabase.createClient(SUPABASE_CONFIG.url, SUPABASE_CONFIG.anonKey);
@@ -50,7 +50,7 @@ const DBService = {
       request.onsuccess = (e) => {
         this.db = e.target.result;
         console.log("⚡ [DBService] Banco de dados IndexedDB local conectado.");
-        this.seedInitialDataIfNeeded().then(resolve);
+        this.seedInitialDataIfNeeded().then(() => resolve(true));
       };
 
       request.onerror = (e) => {
@@ -61,11 +61,15 @@ const DBService = {
   },
 
   async seedInitialDataIfNeeded() {
-    const profs = await this.getProfessores();
-    if (profs.length === 0) {
-      for (const p of JIFS_DATA.professoresPadrao) {
-        await this.saveProfessor(p);
+    try {
+      const profs = await this.getProfessores();
+      if (profs.length === 0 && Array.isArray(window.JIFS_DATA?.professoresPadrao)) {
+        for (const p of window.JIFS_DATA.professoresPadrao) {
+          await this.saveProfessor(p);
+        }
       }
+    } catch (err) {
+      console.warn("⚠️ Erro ao semear dados iniciais no IndexedDB:", err);
     }
   },
 
@@ -77,20 +81,30 @@ const DBService = {
     // Se estiver conectado ao Supabase
     if (this.supabaseClient) {
       const { data, error } = await this.supabaseClient.from('professores').select('*');
-      if (!error && data) {
-        return data.map(p => ({
-          id: String(p.id),
-          nome: p.nome,
-          email: p.email,
-          modalidadePreferencial: p.modalidade_preferencial,
-          cor: p.cor_hex
-        }));
+      if (!error && Array.isArray(data)) {
+        return data.map((p, index) => {
+          let corFinal = p.cor_hex;
+          // Se não houver cor cadastrada no banco, busca da paleta padrão
+          if (!corFinal && Array.isArray(window.JIFS_DATA?.paletaCoresProfessores)) {
+            const paleta = window.JIFS_DATA.paletaCoresProfessores;
+            corFinal = paleta[index % paleta.length];
+          }
+
+          return {
+            id: String(p.id),
+            nome: p.nome,
+            email: p.email,
+            modalidadePreferencial: p.modalidade_preferencial,
+            cor: corFinal || '#10b981'
+          };
+        });
       }
     }
 
     // Fallback IndexedDB
     if (!this.db) await this.init();
     return new Promise((resolve) => {
+      if (!this.db) return resolve([]);
       const tx = this.db.transaction("professores", "readonly");
       const store = tx.objectStore("professores");
       const req = store.getAll();
@@ -168,6 +182,7 @@ const DBService = {
 
     if (!this.db) await this.init();
     return new Promise((resolve) => {
+      if (!this.db) return resolve({});
       const tx = this.db.transaction("atribuicoes", "readonly");
       const store = tx.objectStore("atribuicoes");
       const req = store.getAll();
@@ -229,6 +244,7 @@ const DBService = {
 
     if (!this.db) await this.init();
     return new Promise((resolve) => {
+      if (!this.db) return resolve({ "2026-08-25": "", "2026-08-26": "" });
       const tx = this.db.transaction("escala_dia", "readonly");
       const store = tx.objectStore("escala_dia");
       const req = store.getAll();
